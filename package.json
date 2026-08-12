@@ -1,6 +1,6 @@
 {
   "name": "pi-turso-memory",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Coding-progression memory for Pi backed by Turso/libSQL: checkpoints, progress ledger, curated Markdown, fail-open retrieval.",
   "repository": {
     "type": "git",
@@ -9,8 +9,20 @@
   "homepage": "https://github.com/ryan-brosas/pi-turso-memory#readme",
   "type": "module",
   "license": "MIT",
-  "keywords": ["pi-package", "pi-extension", "memory", "turso", "libsql", "checkpoint"],
-  "files": ["src", "docs", "README.md", "LICENSE"],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "memory",
+    "turso",
+    "libsql",
+    "checkpoint"
+  ],
+  "files": [
+    "src",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "@libsql/client": "^0.17.4"
   },
@@ -33,6 +45,8 @@
     "prepublishOnly": "npm run release:check"
   },
   "pi": {
-    "extensions": ["./src/index.ts"]
+    "extensions": [
+      "./src/index.ts"
+    ]
   }
 }
