@@ -2,11 +2,13 @@
 
 The package is discovered by the [pi.dev package catalog](https://pi.dev/packages) because
 `package.json` includes the `pi-package` keyword. The catalog indexes the npm registry; there is no
-separate pi.dev upload.
+separate pi.dev upload. Versions `0.1.0` and `0.1.1` were published through this flow, with
+GitHub-OIDC provenance verified on the registry.
 
-## One-time setup: npm trusted publishing
+## npm trusted publishing (configured)
 
-Configure npm's **Trusted Publisher** for this package before the next release:
+Trusted Publisher is configured on npmjs.com for this repository (`release.yml`, action `npm publish`);
+no `NPM_TOKEN` exists or is needed. Steps kept for reference if it is ever re-added:
 
 1. Open the package's **Settings** on npmjs.com, then **Trusted Publisher**.
 2. Select **GitHub Actions** and enter:
@@ -40,10 +42,20 @@ npm view pi-turso-memory version dist-tags --json
 pi -e npm:pi-turso-memory -p "List the available /tm commands."
 ```
 
-The second command tries the published package without changing Pi settings. Catalog indexing can
-lag the npm publication; check [pi.dev/packages](https://pi.dev/packages) after the index refresh.
+The second command tries the published package without changing Pi settings.
 
-## Recommended repository protections
+> **pi.dev catalog status:** the catalog API ([/api/packages](https://pi.dev/api/packages)) currently
+> returns `API routes are reserved for future features.` — the catalog backend is not live yet.
+> The package is indexed on npm with the `pi-package` keyword and will appear on
+> [pi.dev/packages](https://pi.dev/packages) once pi.dev enables the catalog.
 
-Require the `CI / validate` status check on `main` and protect the `v*` tag pattern. This keeps the
-only publishing path tied to reviewed, passing code.
+## Repository protections (applied)
+
+Two active rulesets protect release integrity (exempting the repo admin):
+
+- `release-tags` (tag): `refs/tags/v*` cannot be force-pushed or deleted.
+- `main-protection` (branch): `main` cannot be force-pushed or deleted.
+
+Requiring the `CI / validate` status check on `main` was deliberately **not** enabled: it would block
+the direct `git push --follow-tags` release flow because the version-bump commit is pushed before
+CI can run. For teams, switch releases to PRs first, then add the status check.
