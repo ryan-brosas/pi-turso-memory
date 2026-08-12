@@ -131,14 +131,6 @@ CREATE TABLE IF NOT EXISTS markdown_exports (
   promoted_at TEXT
 );
 
-CREATE TABLE IF NOT EXISTS memory_embeddings (
-  memory_id TEXT PRIMARY KEY REFERENCES memory_items(id),
-  model TEXT NOT NULL,
-  dim INTEGER NOT NULL,
-  vector BLOB NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
 CREATE INDEX IF NOT EXISTS progress_project_time ON progress_events(project_id, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS memory_scope_status_time ON memory_items(owner_key, scope, status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS memory_kind_status ON memory_items(kind, status, updated_at DESC);

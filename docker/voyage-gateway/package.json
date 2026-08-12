@@ -1,0 +1,5 @@
+{
+  "name": "voyage-embedding-gateway",
+  "private": true,
+  "type": "module"
+}

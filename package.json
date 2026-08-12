@@ -20,8 +20,10 @@
   "files": [
     "src",
     "docs",
+    "docker",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    ".env.example"
   ],
   "dependencies": {
     "@libsql/client": "^0.17.4"

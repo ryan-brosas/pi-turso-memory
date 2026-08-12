@@ -5,3 +5,5 @@ node_modules/
 *.db-wal
 *.db-shm
 .package-lock.json.tmp
+turso-data/
+.env

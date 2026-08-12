@@ -1,0 +1,33 @@
+services:
+  turso:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    command: ["--db-path", "/data"]
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - turso-data:/data
+    restart: unless-stopped
+
+  voyage-gateway:
+    build: ./docker/voyage-gateway
+    environment:
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:?set VOYAGE_API_KEY in .env}
+    ports:
+      - "127.0.0.1:8081:8080"
+    restart: unless-stopped
+
+  embedder:
+    build: ./docker/embedder
+    environment:
+      TURSO_URL: http://turso:8080
+      EMBED_URL: http://voyage-gateway:8080/v1
+      MODEL: ${EMBED_MODEL:-voyage-4-lite}
+      POLL_MS: ${EMBED_POLL_MS:-30000}
+      RUN_ONCE: ${EMBED_RUN_ONCE:-false}
+    depends_on:
+      - turso
+      - voyage-gateway
+    restart: unless-stopped
+
+volumes:
+  turso-data:

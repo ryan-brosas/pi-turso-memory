@@ -20,11 +20,6 @@ export interface TursoMemoryConfig {
   operationTimeoutMs: number;
   checkpointOnCompaction: boolean;
   memoryDir: string;
-  embeddingMode: "off" | "auto" | "on";
-  embeddingProvider: "voyage" | "openai";
-  embeddingModel: string;
-  embeddingApiKeyEnv: string;
-  embeddingBaseUrl: string;
 }
 
 export function defaultConfig(agentDir: string): TursoMemoryConfig {
@@ -44,11 +39,6 @@ export function defaultConfig(agentDir: string): TursoMemoryConfig {
     operationTimeoutMs: 1200,
     checkpointOnCompaction: true,
     memoryDir: path.join(agentDir, "turso-memory"),
-    embeddingMode: "off",
-    embeddingProvider: "voyage",
-    embeddingModel: "voyage-4-lite",
-    embeddingApiKeyEnv: "VOYAGE_API_KEY",
-    embeddingBaseUrl: "",
   };
 }
 
@@ -94,15 +84,6 @@ function apply(base: TursoMemoryConfig, s: Record<string, unknown> | undefined):
     operationTimeoutMs: num("operationTimeoutMs", base.operationTimeoutMs),
     checkpointOnCompaction: bool("checkpointOnCompaction", base.checkpointOnCompaction),
     memoryDir: expandHome(str("memoryDir", base.memoryDir)),
-    embeddingMode:
-      s["embeddingMode"] === "on" ? "on" : s["embeddingMode"] === "auto" ? "auto" : "off",
-    embeddingProvider: s["embeddingProvider"] === "openai" ? "openai" : "voyage",
-    embeddingModel: str("embeddingModel", base.embeddingModel),
-    embeddingApiKeyEnv:
-      typeof s["embeddingApiKeyEnv"] === "string"
-        ? (s["embeddingApiKeyEnv"] as string)
-        : base.embeddingApiKeyEnv,
-    embeddingBaseUrl: str("embeddingBaseUrl", base.embeddingBaseUrl),
   };
 }
 

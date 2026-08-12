@@ -3,7 +3,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { redactSecrets } from "../redact.ts";
 import { SCHEMA_SQL, splitSchema } from "./schema.ts";
 import type {
-  Embedder,
   MemoryCandidateInput,
   MemoryHit,
   MemoryKind,
@@ -55,11 +54,7 @@ function ftsMatch(q: string): string {
 export class TursoMemoryStore implements MemoryStore {
   private client: Client;
   private fts5 = false;
-  private vectors = false;
   private closed = false;
-  private embedder: Embedder | undefined = undefined;
-  private embedderModel = "custom";
-  private embeddingBusy = false;
 
   constructor(opts: TursoStoreOptions) {
     this.client = createClient({ url: opts.url, authToken: opts.authToken });
@@ -71,7 +66,6 @@ export class TursoMemoryStore implements MemoryStore {
     await this.client.batch(statements, "write");
     this.fts5 = await this.probeFts5();
     if (this.fts5) await this.backfillFts();
-    this.vectors = await this.probeVectors();
   }
 
   private async probeFts5(): Promise<boolean> {
@@ -116,17 +110,6 @@ export class TursoMemoryStore implements MemoryStore {
     }
   }
 
-  private async probeVectors(): Promise<boolean> {
-    try {
-      await this.client.execute(
-        "SELECT vector_distance_cos(vector32('[1,0]'), vector32('[1,0]'))",
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   async health(): Promise<StoreHealth> {
     const t = Date.now();
     try {
@@ -134,7 +117,7 @@ export class TursoMemoryStore implements MemoryStore {
       return {
         ok: true,
         latencyMs: Date.now() - t,
-        capabilities: { basicSql: true, transactions: true, fts5: this.fts5, vectors: this.vectors },
+        capabilities: { basicSql: true, transactions: true, fts5: this.fts5 },
       };
     } catch (e) {
       return { ok: false, latencyMs: Date.now() - t, error: String(e), capabilities: {} };
@@ -150,7 +133,6 @@ export class TursoMemoryStore implements MemoryStore {
       "memory_items",
       "working_state",
       "markdown_exports",
-      "memory_embeddings",
     ]) {
       const row = await this.first(`SELECT COUNT(*) AS n FROM ${table}`);
       out[table] = Number(row?.n ?? 0);
@@ -332,7 +314,7 @@ export class TursoMemoryStore implements MemoryStore {
       const match = ftsMatch(q);
       if (match) {
         const rows = await this.searchFts(where, args, match, limit * 4);
-        if (rows.length > 0) return this.mergeVector(rows.map((r) => this.hit(r)), q, where, args, limit);
+        if (rows.length > 0) return rows.map((r) => this.hit(r));
       }
     }
     const like = `%${escapeLike(q)}%`;
@@ -343,7 +325,7 @@ export class TursoMemoryStore implements MemoryStore {
        ORDER BY updated_at DESC LIMIT ?`,
       [...args, like, like, like, limit],
     );
-    return this.mergeVector(rows.map((r) => this.hit(r)), q, where, args, limit);
+    return rows.map((r) => this.hit(r));
   }
 
   private hit(r: Record<string, unknown>): MemoryHit {
@@ -396,16 +378,6 @@ export class TursoMemoryStore implements MemoryStore {
         now,
       ],
     });
-    if (this.vectors && this.embedder) {
-      try {
-        const [vec] = await this.embedder([
-          redactSecrets(`${input.title}\n${input.content}`).text,
-        ]);
-        if (vec && vec.length > 0) await this.upsertEmbedding(id, vec);
-      } catch {
-        /* fail open: embedding failures never block candidate creation */
-      }
-    }
     return id;
   }
 
@@ -436,98 +408,6 @@ export class TursoMemoryStore implements MemoryStore {
       sql: "UPDATE memory_items SET status = 'archived', updated_at = ? WHERE id = ?",
       args: [new Date().toISOString(), id],
     });
-  }
-
-  setEmbedder(embed: Embedder | undefined, model?: string): void {
-    this.embedder = embed;
-    if (model) this.embedderModel = model;
-  }
-
-  /** Backfill embeddings for memory items that do not have one yet. */
-  async ensureEmbeddings(limit = 64): Promise<number> {
-    if (!this.vectors || !this.embedder || this.embeddingBusy) return 0;
-    this.embeddingBusy = true;
-    try {
-      const cap = limit > 0 ? limit : 1000;
-      const rows = await this.all(
-        `SELECT m.id, m.title, m.content FROM memory_items m
-         LEFT JOIN memory_embeddings e ON e.memory_id = m.id
-         WHERE e.memory_id IS NULL OR e.model <> ? ORDER BY m.updated_at DESC LIMIT ?`,
-        [this.embedderModel, cap],
-      );
-      let done = 0;
-      for (let i = 0; i < rows.length; i += 16) {
-        const batch = rows.slice(i, i + 16);
-        const texts = batch.map((r) => redactSecrets(`${r.title}\n${r.content}`).text);
-        const vectors = await this.embedder(texts);
-        for (let j = 0; j < batch.length; j++) {
-          const vec = vectors[j];
-          if (vec && vec.length > 0) await this.upsertEmbedding(String(batch[j].id), vec);
-        }
-        done += batch.length;
-      }
-      return done;
-    } finally {
-      this.embeddingBusy = false;
-    }
-  }
-
-  private async upsertEmbedding(memoryId: string, vec: number[]): Promise<void> {
-    await this.client.execute({
-      sql: `INSERT INTO memory_embeddings (memory_id, model, dim, vector, updated_at)
-            VALUES (?, ?, ?, vector32(?), ?)
-            ON CONFLICT(memory_id) DO UPDATE SET
-              model = excluded.model, dim = excluded.dim, vector = excluded.vector,
-              updated_at = excluded.updated_at`,
-      args: [
-        memoryId,
-        this.embedderModel,
-        vec.length,
-        JSON.stringify(vec),
-        new Date().toISOString(),
-      ],
-    });
-  }
-
-  /** Reciprocal-rank fusion of lexical hits with vector neighbors. Fails open to lexical. */
-  private async mergeVector(
-    lexical: MemoryHit[],
-    q: string,
-    where: string,
-    args: InValue[],
-    limit: number,
-  ): Promise<MemoryHit[]> {
-    if (!this.vectors || !this.embedder) return lexical;
-    try {
-      const [qvec] = await this.embedder([redactSecrets(q).text]);
-      if (!qvec || qvec.length === 0) return lexical;
-      const rows = await this.all(
-        `SELECT m.id, m.kind, m.scope, m.status, m.title, m.content, m.confidence, m.evidence_kind, m.git_head, m.branch_name, m.created_at, m.updated_at,
-                vector_distance_cos(e.vector, vector32(?)) AS d
-         FROM memory_items m JOIN memory_embeddings e ON e.memory_id = m.id
-         WHERE ${where} AND e.model = ? AND e.dim = ?`,
-        [JSON.stringify(qvec), ...args, this.embedderModel, qvec.length],
-      );
-      const ranked = rows
-        .map((r) => ({ hit: this.hit(r), d: Number(r.d ?? NaN) }))
-        .filter((x) => Number.isFinite(x.d))
-        .sort((a, b) => a.d - b.d)
-        .slice(0, Math.max(limit * 2, 4));
-      if (ranked.length === 0) return lexical;
-      const k = 60;
-      const merged = new Map<string, { hit: MemoryHit; score: number }>();
-      lexical.forEach((h, i) => merged.set(h.id, { hit: h, score: 1 / (k + i + 1) }));
-      ranked.forEach((x, i) => {
-        const prev = merged.get(x.hit.id);
-        merged.set(x.hit.id, { hit: x.hit, score: (prev?.score ?? 0) + 1 / (k + i + 1) });
-      });
-      return [...merged.values()]
-        .sort((a, b) => b.score - a.score || b.hit.updatedAt.localeCompare(a.hit.updatedAt))
-        .slice(0, limit)
-        .map((x) => ({ ...x.hit, score: Math.round(x.score * 1000) / 1000 }));
-    } catch {
-      return lexical;
-    }
   }
 
   private async all(sql: string, args: InValue[] = []): Promise<Record<string, unknown>[]> {

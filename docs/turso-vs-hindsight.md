@@ -77,7 +77,10 @@ The test timings are not a benchmark. A real comparison needs the fixed corpus, 
 - candidate/active memory text, tags, confidence, and evidence metadata;
 - Markdown export records.
 
-`probeVectors()` only reports whether the connected libSQL/Turso deployment exposes vector functions. It does not generate, store, or search embeddings. `search()` currently uses scoped SQL `LIKE` matching.
+Vector similarity search is native to libSQL Server: it stores `vector32` values and ranks
+  them in SQL. Embedding *generation* runs outside the database — the optional Docker stack
+  (see `docker/`) generates vectors with Voyage and backfills `memory_embeddings`. `search()`
+  uses FTS5 lexical matching with a scoped SQL `LIKE` fallback.
 
 Start without embeddings. Exact paths, symbols, commands, error messages, and test names are common coding-memory queries, and lexical search is strong for those. Add embeddings only when a labelled query set demonstrates a meaningful paraphrase-recall gap.
 
