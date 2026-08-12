@@ -18,7 +18,13 @@ Design brief: `/home/utopia/work/inbox/turso-memory-plugin.md`
 
 ## Install / develop
 
+Source: <https://github.com/ryan-brosas/pi-turso-memory> (npm release pending; listed on the
+[pi.dev catalog](https://pi.dev/packages) once published with the `pi-package` keyword).
+
 ```bash
+pi install git:github.com/ryan-brosas/pi-turso-memory   # or npm:pi-turso-memory after publish
+
+# develop locally
 cd /home/utopia/work/project/pi-turso-memory
 npm install
 npm run check          # typecheck + tests
