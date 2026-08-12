@@ -1,0 +1,197 @@
+{
+  "format": 1,
+  "entries": {
+    "topology/hosts/9dcb495eeef599003673fc05c76a98468a3ceabd81e752c252bd803b8249ef92": {
+      "key": "topology/hosts/9dcb495eeef599003673fc05c76a98468a3ceabd81e752c252bd803b8249ef92",
+      "value": {
+        "format": 1,
+        "id": "session:019ff34b-f6b6-7914-96ff-96026090b55e",
+        "rootId": "session:019ff34b-f6b6-7914-96ff-96026090b55e",
+        "identity": {
+          "id": "session:019ff34b-f6b6-7914-96ff-96026090b55e",
+          "name": "main",
+          "kind": "main",
+          "sessionId": "019ff34b-f6b6-7914-96ff-96026090b55e"
+        },
+        "startedAt": 1786493270292,
+        "updatedAt": 1786493565317,
+        "expiresAt": 1786493580317
+      },
+      "version": 60,
+      "updatedAt": 1786493565318,
+      "updatedBy": {
+        "id": "session:019ff34b-f6b6-7914-96ff-96026090b55e",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019ff34b-f6b6-7914-96ff-96026090b55e"
+      }
+    },
+    "sessions/019ff34b-f6b6-7914-96ff-96026090b55e": {
+      "key": "sessions/019ff34b-f6b6-7914-96ff-96026090b55e",
+      "value": {
+        "id": "session:019ff34b-f6b6-7914-96ff-96026090b55e",
+        "name": "Peer 019ff34b",
+        "kind": "peer",
+        "status": "idle",
+        "runner": "pi",
+        "transport": "host",
+        "cwd": "/home/utopia/work/project/pi-turso-memory",
+        "sessionId": "019ff34b-f6b6-7914-96ff-96026090b55e",
+        "model": "openai-codex/gpt-5.6-terra",
+        "thinking": "high",
+        "startedAt": 1786493270292,
+        "updatedAt": 1786493565317,
+        "pendingMessages": false,
+        "local": false
+      },
+      "version": 60,
+      "updatedAt": 1786493565318,
+      "updatedBy": {
+        "id": "session:019ff34b-f6b6-7914-96ff-96026090b55e",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019ff34b-f6b6-7914-96ff-96026090b55e"
+      }
+    },
+    "topology/participants/9dcb495eeef599003673fc05c76a98468a3ceabd81e752c252bd803b8249ef92": {
+      "key": "topology/participants/9dcb495eeef599003673fc05c76a98468a3ceabd81e752c252bd803b8249ef92",
+      "value": {
+        "format": 1,
+        "id": "session:019ff34b-f6b6-7914-96ff-96026090b55e",
+        "kind": "root",
+        "rootId": "session:019ff34b-f6b6-7914-96ff-96026090b55e",
+        "ownerHostId": "session:019ff34b-f6b6-7914-96ff-96026090b55e",
+        "ownerIdentityId": "session:019ff34b-f6b6-7914-96ff-96026090b55e",
+        "name": "main",
+        "status": "idle",
+        "runner": "pi",
+        "transport": "host",
+        "capabilities": [
+          "steer",
+          "followUp",
+          "fabric"
+        ],
+        "cwd": "/home/utopia/work/project/pi-turso-memory",
+        "sessionId": "019ff34b-f6b6-7914-96ff-96026090b55e",
+        "model": "openai-codex/gpt-5.6-terra",
+        "thinking": "high",
+        "startedAt": 1786493270292,
+        "updatedAt": 1786493565317,
+        "pendingMessages": false,
+        "controlProtocol": "v1"
+      },
+      "version": 60,
+      "updatedAt": 1786493565318,
+      "updatedBy": {
+        "id": "session:019ff34b-f6b6-7914-96ff-96026090b55e",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019ff34b-f6b6-7914-96ff-96026090b55e"
+      }
+    },
+    "topology/hosts/d34b1b9f4c63e96e77caf7b73b57988cd1550400b4bd8262ba98ec4b2adf240e": {
+      "key": "topology/hosts/d34b1b9f4c63e96e77caf7b73b57988cd1550400b4bd8262ba98ec4b2adf240e",
+      "value": {
+        "format": 1,
+        "id": "session:019ff34d-fa52-7fce-9dea-31757def1a00",
+        "rootId": "session:019ff34d-fa52-7fce-9dea-31757def1a00",
+        "identity": {
+          "id": "session:019ff34d-fa52-7fce-9dea-31757def1a00",
+          "name": "main",
+          "kind": "main",
+          "sessionId": "019ff34d-fa52-7fce-9dea-31757def1a00"
+        },
+        "startedAt": 1786493402277,
+        "updatedAt": 1786493567290,
+        "expiresAt": 1786493582290
+      },
+      "version": 84,
+      "updatedAt": 1786493567290,
+      "updatedBy": {
+        "id": "session:019ff34d-fa52-7fce-9dea-31757def1a00",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019ff34d-fa52-7fce-9dea-31757def1a00"
+      }
+    },
+    "sessions/019ff34d-fa52-7fce-9dea-31757def1a00": {
+      "key": "sessions/019ff34d-fa52-7fce-9dea-31757def1a00",
+      "value": {
+        "id": "session:019ff34d-fa52-7fce-9dea-31757def1a00",
+        "name": "Peer 019ff34d",
+        "kind": "peer",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "cwd": "/home/utopia/work/project/pi-turso-memory",
+        "sessionId": "019ff34d-fa52-7fce-9dea-31757def1a00",
+        "model": "opencode-go/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1786493402277,
+        "updatedAt": 1786493567290,
+        "pendingMessages": false,
+        "local": false
+      },
+      "version": 84,
+      "updatedAt": 1786493567290,
+      "updatedBy": {
+        "id": "session:019ff34d-fa52-7fce-9dea-31757def1a00",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019ff34d-fa52-7fce-9dea-31757def1a00"
+      }
+    },
+    "topology/participants/d34b1b9f4c63e96e77caf7b73b57988cd1550400b4bd8262ba98ec4b2adf240e": {
+      "key": "topology/participants/d34b1b9f4c63e96e77caf7b73b57988cd1550400b4bd8262ba98ec4b2adf240e",
+      "value": {
+        "format": 1,
+        "id": "session:019ff34d-fa52-7fce-9dea-31757def1a00",
+        "kind": "root",
+        "rootId": "session:019ff34d-fa52-7fce-9dea-31757def1a00",
+        "ownerHostId": "session:019ff34d-fa52-7fce-9dea-31757def1a00",
+        "ownerIdentityId": "session:019ff34d-fa52-7fce-9dea-31757def1a00",
+        "name": "main",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "capabilities": [
+          "steer",
+          "followUp",
+          "fabric"
+        ],
+        "cwd": "/home/utopia/work/project/pi-turso-memory",
+        "sessionId": "019ff34d-fa52-7fce-9dea-31757def1a00",
+        "model": "opencode-go/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1786493402277,
+        "updatedAt": 1786493567290,
+        "pendingMessages": false,
+        "controlProtocol": "v1"
+      },
+      "version": 84,
+      "updatedAt": 1786493567291,
+      "updatedBy": {
+        "id": "session:019ff34d-fa52-7fce-9dea-31757def1a00",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019ff34d-fa52-7fce-9dea-31757def1a00"
+      }
+    }
+  },
+  "versions": {
+    "topology/hosts/9dcb495eeef599003673fc05c76a98468a3ceabd81e752c252bd803b8249ef92": 60,
+    "sessions/019ff34b-f6b6-7914-96ff-96026090b55e": 60,
+    "topology/participants/9dcb495eeef599003673fc05c76a98468a3ceabd81e752c252bd803b8249ef92": 60,
+    "topology/hosts/789a58779db556ceccdb011bb91d854c100a99044e9aaa01ebf7572ac25c8f55": 8,
+    "sessions/019ff34d-77b1-72d5-8f56-32548ad6373f": 7,
+    "topology/participants/789a58779db556ceccdb011bb91d854c100a99044e9aaa01ebf7572ac25c8f55": 8,
+    "topology/hosts/d34b1b9f4c63e96e77caf7b73b57988cd1550400b4bd8262ba98ec4b2adf240e": 84,
+    "sessions/019ff34d-fa52-7fce-9dea-31757def1a00": 84,
+    "topology/participants/d34b1b9f4c63e96e77caf7b73b57988cd1550400b4bd8262ba98ec4b2adf240e": 84
+  },
+  "tombstoneOrder": [
+    "sessions/019ff34d-77b1-72d5-8f56-32548ad6373f",
+    "topology/participants/789a58779db556ceccdb011bb91d854c100a99044e9aaa01ebf7572ac25c8f55",
+    "topology/hosts/789a58779db556ceccdb011bb91d854c100a99044e9aaa01ebf7572ac25c8f55"
+  ]
+}

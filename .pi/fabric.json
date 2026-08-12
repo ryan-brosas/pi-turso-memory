@@ -1,0 +1,8 @@
+{
+  "configVersion": 3,
+  "prewalk": {
+    "alwaysRearm": true,
+    "thinking": "max",
+    "model": "opencode-go/deepseek-v4-flash"
+  }
+}

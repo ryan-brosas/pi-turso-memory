@@ -1,0 +1,35 @@
+{
+  "name": "pi-turso-memory",
+  "version": "0.1.0",
+  "description": "Coding-progression memory for Pi backed by Turso/libSQL: checkpoints, progress ledger, curated Markdown, fail-open retrieval.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryan-brosas/pi-turso-memory.git"
+  },
+  "homepage": "https://github.com/ryan-brosas/pi-turso-memory#readme",
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["pi-package", "pi-extension", "memory", "turso", "libsql", "checkpoint"],
+  "files": ["src", "docs", "README.md", "LICENSE"],
+  "dependencies": {
+    "@libsql/client": "^0.17.4"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.84.1",
+    "@types/node": "^26.0.0",
+    "typebox": "1.3.8",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts",
+    "check": "npm run typecheck && npm test"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  }
+}
