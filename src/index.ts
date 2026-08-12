@@ -7,7 +7,7 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { loadConfig, type TursoMemoryConfig } from "./config.ts";
+import { loadConfig, saveConfig, type TursoMemoryConfig } from "./config.ts";
 import {
   archiveDir,
   candidateFile,
@@ -20,6 +20,9 @@ import {
 import { buildPacket, formatPacket } from "./packet.ts";
 import { redactSecrets } from "./redact.ts";
 import { TursoMemoryStore, uid } from "./store/turso-store.ts";
+import { buildSettingsItems, TursoSettingsComponent } from "./ui/settings.ts";
+import { TursoDashboardComponent } from "./ui/dashboard.ts";
+import type { UiDashboardSnapshot, UiCandidate } from "./ui/types.ts";
 import type { MemoryHit, ProgressEvent, ProjectIdentity } from "./store/types.ts";
 import { git, shortError, truncate } from "./util.ts";
 
@@ -358,6 +361,86 @@ export default function (pi: ExtensionAPI) {
     return file;
   }
 
+  async function gatherSnapshot(ctx: ExtensionCommandContext): Promise<UiDashboardSnapshot | undefined> {
+    if (!store || !config || !projectKey) return undefined;
+    const [health, stats, packet] = await Promise.all([
+      store.health(),
+      store.stats(),
+      store.getResumePacket(projectKey, { includeGlobal: config.includeGlobal }),
+    ]);
+    const candidates: UiCandidate[] = packet.hits.filter((h) => h.status === 'candidate').map((h) => ({
+      id: h.id, kind: h.kind, scope: h.scope, status: h.status,
+      title: h.title, content: h.content, confidence: h.confidence,
+      evidenceKind: h.evidenceKind, gitHead: h.gitHead, branchName: h.branchName,
+      createdAt: h.createdAt, updatedAt: h.updatedAt,
+    }));
+    return {
+      now: Date.now(), health, stats, workingState: packet.workingState,
+      candidates, activeMemories: packet.hits.filter((h) => h.status === 'active'),
+      recentEvents: packet.recentEvents, config: config!, projectKey,
+    };
+  }
+
+  async function cmdDashboard(ctx: ExtensionCommandContext): Promise<void> {
+    if (!(await ensureStore(ctx)) || !store) {
+      notify(ctx, 'turso-memory: store unavailable', 'error');
+      return;
+    }
+    try {
+      const snapshot = await gatherSnapshot(ctx);
+      if (!snapshot) { notify(ctx, 'turso-memory: no project bound', 'warning'); return; }
+      await ctx.ui.custom<undefined>((tui, theme, _kb, done) => {
+        const open = () => {
+          const comp = new TursoDashboardComponent(
+            theme,
+            () => snapshot!,
+            async (id) => {
+              try { await store!.promote(id); const file = findInboxFile(config!.memoryDir, id); if (file) { fs.mkdirSync(archiveDir(config!.memoryDir), { recursive: true }); try { fs.renameSync(path.join(inboxDir(config!.memoryDir), file), path.join(archiveDir(config!.memoryDir), file)); } catch {} } notify(ctx, 'promoted ' + id, 'info'); } catch (e) { notify(ctx, 'promote failed: ' + shortError(e), 'error'); }
+              open();
+            },
+            async (id) => {
+              try { await store!.reject(id); notify(ctx, 'rejected ' + id, 'info'); } catch (e) { notify(ctx, 'reject failed: ' + shortError(e), 'error'); }
+              open();
+            },
+            () => done(undefined),
+          );
+          return comp;
+        };
+        return open();
+      }, { overlay: true });
+    } catch (e) {
+      notify(ctx, 'dashboard: ' + shortError(e), 'error');
+    }
+  }
+
+  async function cmdSettings(ctx: ExtensionCommandContext): Promise<void> {
+    if (!(await ensureStore(ctx)) || !config) {
+      notify(ctx, 'turso-memory: store unavailable', 'error');
+      return;
+    }
+    try {
+      await ctx.ui.custom<undefined>((tui, theme, _kb, done) => {
+        const items = buildSettingsItems(theme, config!, (id, newValue) => {
+          try {
+            const partial: Record<string, unknown> = {};
+            if (newValue === 'true' || newValue === 'false') partial[id] = newValue === 'true';
+            else if (['candidates', 'off', 'git-remote-or-root', 'cwd'].includes(newValue)) partial[id] = newValue;
+            else {
+              const n = Number(newValue);
+              if (Number.isFinite(n)) partial[id] = n;
+              else partial[id] = newValue;
+            }
+            config = saveConfig(ctx.cwd, agentDir(), partial as Partial<import('./config.ts').TursoMemoryConfig>);
+            notify(ctx, 'setting ' + id + ' updated', 'info');
+          } catch (e) { notify(ctx, 'save failed: ' + shortError(e), 'error'); }
+        });
+        return new TursoSettingsComponent(theme, items, () => {}, () => done(undefined));
+      }, { overlay: true });
+    } catch (e) {
+      notify(ctx, 'settings: ' + shortError(e), 'error');
+    }
+  }
+
   async function cmdPromote(ctx: ExtensionCommandContext, id: string): Promise<void> {
     await withStore(ctx, async () => {
       if (!config) return;
@@ -377,7 +460,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerCommand("tm", {
     description:
-      "Turso memory: status | task | search <q> | checkpoint | promote <id> | reject <id> | refresh | doctor",
+      "Turso memory: settings | dashboard | status | task | search <q> | checkpoint | promote <id> | reject <id> | refresh | doctor",
     handler: async (args, ctx) => {
       const parts = (args ?? "").trim().split(/\s+/);
       const cmd = parts[0] ?? "";
@@ -388,6 +471,13 @@ export default function (pi: ExtensionAPI) {
           break;
         case "task":
           await cmdTask(ctx);
+          break;
+        case "dashboard":
+        case "":
+          await cmdDashboard(ctx);
+          break;
+        case "settings":
+          await cmdSettings(ctx);
           break;
         case "search":
           if (!rest) {
@@ -443,7 +533,7 @@ export default function (pi: ExtensionAPI) {
         default:
           notify(
             ctx,
-            "turso-memory commands: status | task | search <q> | checkpoint | promote <id> | reject <id> | refresh | doctor",
+            "turso-memory commands: settings | dashboard | status | task | search <q> | checkpoint | promote <id> | reject <id> | refresh | doctor",
           );
       }
     },

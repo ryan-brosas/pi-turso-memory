@@ -80,14 +80,17 @@ If your Turso/libSQL server runs in Docker (e.g. `ghcr.io/tursodatabase/libsql-s
 ## Commands
 
 ```text
-/tm status         connection, capabilities, row counts
-/tm task           current working state
-/tm search <q>     project-scoped search with provenance
-/tm checkpoint     write current state to inbox as a candidate
-/tm promote <id>   promote a candidate to active memory
-/tm reject <id>    reject a candidate
-/tm doctor         config, connection, redaction self-test
-/tm refresh        rebuild the injected snapshot at the next prompt
+/tm                 dashboard (default)
+/tm settings        settings overlay
+/tm dashboard       dashboard overlay
+/tm status          connection, capabilities, row counts
+/tm task            current working state
+/tm search <q>      project-scoped search with provenance
+/tm checkpoint      write current state to inbox as a candidate
+/tm promote <id>    promote a candidate to active memory
+/tm reject <id>     reject a candidate
+/tm doctor          config, connection, redaction self-test
+/tm refresh         rebuild the injected snapshot at the next prompt
 ```
 
 Agent tools: `turso_memory_recall` (search) and `turso_memory_checkpoint` (write candidate).

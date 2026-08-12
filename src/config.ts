@@ -105,3 +105,19 @@ export function loadConfig(cwd: string, agentDir: string): TursoMemoryConfig {
   if (!cfg.databaseUrl) cfg.databaseUrl = "file:" + cfg.fallbackFile;
   return cfg;
 }
+
+export function saveConfig(cwd: string, agentDir: string, partial: Partial<TursoMemoryConfig>): TursoMemoryConfig {
+  const scope = partial.projectScope === "cwd" ? "project" : "global";
+  const file = scope === "project"
+    ? path.join(cwd, ".pi", "settings.json")
+    : path.join(agentDir, "settings.json");
+  const existing = readJson(file);
+  const ns = namespace(existing) ?? {};
+  for (const [k, v] of Object.entries(partial)) {
+    if (v !== undefined) (ns as Record<string, unknown>)[k] = v;
+  }
+  existing["turso-memory"] = ns;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(existing, null, 2) + "\n", "utf8");
+  return loadConfig(cwd, agentDir);
+}
