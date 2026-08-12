@@ -1,7 +1,9 @@
 services:
   turso:
     image: ghcr.io/tursodatabase/libsql-server:latest
-    command: ["--db-path", "/data"]
+    environment:
+      SQLD_NODE: standalone
+      SQLD_DB_PATH: /data/turso.db
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
