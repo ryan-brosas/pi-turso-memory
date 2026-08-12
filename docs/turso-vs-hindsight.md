@@ -84,41 +84,29 @@ Vector similarity search is native to libSQL Server: it stores `vector32` values
 
 Start without embeddings. Exact paths, symbols, commands, error messages, and test names are common coding-memory queries, and lexical search is strong for those. Add embeddings only when a labelled query set demonstrates a meaningful paraphrase-recall gap.
 
-## If semantic search is added later
+## Where semantic search lives now
 
-The embedding model runs outside Turso; Turso stores the resulting numeric vector. Keep provider credentials out of the database.
+The embedding model runs outside Turso (Voyage, reached through the Docker gateway); Turso stores the resulting numeric vector. Provider credentials never enter the database or the extension.
 
-A future schema can look like this (dimension must match the selected model):
+The Docker stack (`docker-compose.yml`, `docker/embedder/worker.mjs`) owns the pipeline:
 
-```sql
-CREATE TABLE memory_embeddings (
-  memory_id TEXT NOT NULL REFERENCES memory_items(id),
-  chunk_id TEXT NOT NULL,
-  model TEXT NOT NULL,
-  dimensions INTEGER NOT NULL,
-  content_hash TEXT NOT NULL,
-  embedding F32_BLOB(1536) NOT NULL,
-  created_at TEXT NOT NULL,
-  PRIMARY KEY (memory_id, chunk_id, model)
-);
-```
+- it creates `memory_embeddings` with a `vector32` BLOB column plus `model`, `dim`, and `updated_at`
+  so model or dimension changes invalidate old rows;
+- it attempts a native ANN index (`libsql_vector_idx(vector, 'metric=cosine')`) and falls back to
+  plain `vector32` ranking when the build lacks it;
+- it backfills rows for memory items that have no vector or a stale model, in batches of 16,
+  calling the local gateway's `/v1/embeddings` (keyless from the worker's perspective).
 
-The exact vector type/index syntax must be gated by the existing capability probe; local SQLite fallback may not support Turso's vector functions. A vector query would filter to `status = 'active'` and the project scope, then order by cosine distance. The production path should be **hybrid**:
+The extension itself stays lexical (FTS5 with a LIKE fallback) and does not consume vectors yet.
+Fusing lexical and vector hits (hybrid ranking) remains a future step, worth adding only if a
+labelled query set shows a real paraphrase-recall gap for coding questions.
 
-1. redact content;
-2. keep the exact text and provenance in `memory_items`;
-3. generate embeddings asynchronously after promotion (not during tool capture or compaction);
-4. store `model`, `dimensions`, and `content_hash` so model changes invalidate/rebuild vectors;
-5. combine lexical and vector candidates with scope/status filters;
-6. preserve source IDs and evidence in every returned hit.
-
-Do not embed every raw tool event initially. Embed promoted decisions, lessons, procedures, failures/corrections, and checkpoints; leave the high-volume ledger lexical. A 1,536-dimensional float32 vector is about **6,144 raw bytes per chunk** before database/index overhead, so chunk count and model choice directly affect storage and cost.
-
-Embeddings improve paraphrase matching; they do not replace extraction, review, provenance, freshness, or secret redaction. Hindsight's main advantage is its retain/reflect/mental-model pipeline, not merely that it may use vectors internally.
+Do not embed every raw tool event. Embed promoted decisions, lessons, procedures, failures/corrections, and checkpoints; leave the high-volume ledger lexical. Vector cost scales with the model: `voyage-4-lite` is 1,024 dimensions (4,096 bytes per `vector32` row) before index overhead.
 
 ## Recommendation
 
 1. Keep Turso as the authoritative ledger and reviewable memory store.
 2. Benchmark lexical retrieval first using the metrics above.
-3. Add optional, asynchronous embeddings only for promoted memories if Recall@5 for paraphrased coding questions is poor.
+3. If paraphrased-coding Recall@5 is poor, bring up the Docker embedder (or tune its model) so
+   `memory_embeddings` stays fresh; the extension remains lexical until hybrid fusion lands.
 4. Consider Hindsight as an optional semantic/reflection layer, not as a reason to discard the auditable Turso source of truth.
