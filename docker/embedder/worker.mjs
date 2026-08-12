@@ -8,6 +8,7 @@ const RUN_ONCE = process.env.RUN_ONCE === "true";
 const BATCH = 16;
 
 const client = createClient({ url: TURSO_URL });
+let warnedMissingTable = false;
 
 async function initSchema() {
   await client.batch(
@@ -90,8 +91,18 @@ for (;;) {
   try {
     const done = await runOnce();
     if (done > 0) console.log(`embedded ${done} item(s)`);
+    warnedMissingTable = false;
   } catch (err) {
-    console.error(`embed pass failed: ${err?.message ?? err}`);
+    const message = err?.message ?? String(err);
+    if (message.includes("no such table: memory_items")) {
+      // The extension creates memory_items on first connect; wait quietly for it.
+      if (!warnedMissingTable) {
+        console.error("waiting for the extension to create memory_items");
+        warnedMissingTable = true;
+      }
+    } else {
+      console.error(`embed pass failed: ${message}`);
+    }
   }
   await new Promise((r) => setTimeout(r, POLL_MS));
 }
