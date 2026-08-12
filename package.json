@@ -1,6 +1,6 @@
 {
   "name": "pi-turso-memory",
-  "version": "0.1.1",
+  "version": "0.2.0-alpha.0",
   "description": "Coding-progression memory for Pi backed by Turso/libSQL: checkpoints, progress ledger, curated Markdown, fail-open retrieval.",
   "repository": {
     "type": "git",
