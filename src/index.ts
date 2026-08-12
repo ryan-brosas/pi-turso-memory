@@ -19,6 +19,7 @@ import {
 } from "./markdown.ts";
 import { buildPacket, formatPacket } from "./packet.ts";
 import { redactSecrets } from "./redact.ts";
+import { embedderFromConfig } from "./embed.ts";
 import { TursoMemoryStore, uid } from "./store/turso-store.ts";
 import type { MemoryHit, ProgressEvent, ProjectIdentity } from "./store/types.ts";
 import { git, shortError, truncate } from "./util.ts";
@@ -111,12 +112,17 @@ export default function (pi: ExtensionAPI) {
     try {
       config = loadConfig(ctx.cwd, agentDir());
       if (!config.enabled) return false;
+      const handle = embedderFromConfig(config);
+      if (config.embeddingMode === "on" && !handle) {
+        notify(ctx, "turso-memory: embeddings enabled but no API key or custom endpoint — lexical search only", "warning");
+      }
       store = new TursoMemoryStore({
         url: config.databaseUrl,
         authToken: config.authToken,
         operationTimeoutMs: config.operationTimeoutMs,
       });
       await store.migrate();
+      store.setEmbedder(handle?.embed, handle?.model);
       return true;
     } catch (e) {
       notify(ctx, `turso-memory: unavailable (${shortError(e)})`, "warning");
@@ -136,6 +142,7 @@ export default function (pi: ExtensionAPI) {
         branchName: git(ctx.cwd, ["branch", "--show-current"]),
         gitHead: git(ctx.cwd, ["rev-parse", "--short", "HEAD"]),
       });
+      void store.ensureEmbeddings(64).catch(() => undefined);
     } catch (e) {
       notify(ctx, `turso-memory: session init failed (${shortError(e)})`, "warning");
     }
@@ -255,7 +262,8 @@ export default function (pi: ExtensionAPI) {
       notify(
         ctx,
         `turso-memory: ${health.ok ? "connected" : "DOWN"} ${health.latencyMs}ms | ${caps} | ` +
-          `events=${counts.progress_events} items=${counts.memory_items} projects=${counts.projects}`,
+          `events=${counts.progress_events} items=${counts.memory_items} projects=${counts.projects} ` +
+          `embeddings=${config!.embeddingMode} embedded=${counts.memory_embeddings}`,
       );
     });
   }
@@ -377,7 +385,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerCommand("tm", {
     description:
-      "Turso memory: status | task | search <q> | checkpoint | promote <id> | reject <id> | refresh | doctor",
+      "Turso memory: status | task | search <q> | checkpoint | promote <id> | reject <id> | embed | refresh | doctor",
     handler: async (args, ctx) => {
       const parts = (args ?? "").trim().split(/\s+/);
       const cmd = parts[0] ?? "";
@@ -423,6 +431,16 @@ export default function (pi: ExtensionAPI) {
             });
           }
           break;
+        case "embed":
+          await withStore(ctx, async () => {
+            const n = await store!.ensureEmbeddings(0);
+            notify(
+              ctx,
+              n > 0 ? `embedded ${n} memory item(s)` : "all memory items already embedded",
+              "info",
+            );
+          });
+          break;
         case "refresh":
           notify(ctx, "snapshot rebuilt at the next prompt", "info");
           break;
@@ -431,11 +449,17 @@ export default function (pi: ExtensionAPI) {
           const health = await store.health();
           const sample = redactSecrets("sk-test1234567890abcdef0123");
           const token = config.authToken ? "set" : "unset";
+          const embedKey = process.env[config.embeddingApiKeyEnv]
+            ? "set"
+            : config.embeddingBaseUrl
+              ? "keyless-custom"
+              : "unset";
           notify(
             ctx,
             `turso-memory doctor | url=${config.databaseUrl.replace(/\?.*$/, "")} auth=${token} | ` +
               `health=${health.ok ? "ok" : "DOWN"} fts5=${health.capabilities.fts5} vectors=${health.capabilities.vectors} | ` +
-              `redaction=${sample.status}`, 
+              `embeddings=${config.embeddingMode} provider=${config.embeddingProvider} model=${config.embeddingModel} key=${embedKey} | ` +
+              `redaction=${sample.status}`,
             health.ok ? "info" : "error",
           );
           break;

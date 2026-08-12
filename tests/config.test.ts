@@ -51,6 +51,41 @@ test("project settings override global settings", () => {
   assert.equal(cfg.maxInjectedChars, 500);
 });
 
+test("embedding settings parse with defaults and overrides", () => {
+  const cfg = loadConfig(tmp(), tmp());
+  assert.equal(cfg.embeddingMode, "off");
+  assert.equal(cfg.embeddingProvider, "voyage");
+  assert.equal(cfg.embeddingModel, "voyage-4-lite");
+  assert.equal(cfg.embeddingApiKeyEnv, "VOYAGE_API_KEY");
+  assert.equal(cfg.embeddingBaseUrl, "");
+
+  const agent = tmp();
+  fs.writeFileSync(
+    path.join(agent, "settings.json"),
+    JSON.stringify({
+      "turso-memory": {
+        embeddingMode: "auto",
+        embeddingProvider: "openai",
+        embeddingModel: "text-embedding-3-small",
+        embeddingApiKeyEnv: "OPENAI_API_KEY",
+        embeddingBaseUrl: "https://example.test/v1",
+      },
+    }),
+  );
+  const c2 = loadConfig(tmp(), agent);
+  assert.equal(c2.embeddingMode, "auto");
+  assert.equal(c2.embeddingProvider, "openai");
+  assert.equal(c2.embeddingModel, "text-embedding-3-small");
+  assert.equal(c2.embeddingApiKeyEnv, "OPENAI_API_KEY");
+  assert.equal(c2.embeddingBaseUrl, "https://example.test/v1");
+
+  fs.writeFileSync(
+    path.join(agent, "settings.json"),
+    JSON.stringify({ "turso-memory": { embeddingMode: "bogus" } }),
+  );
+  assert.equal(loadConfig(tmp(), agent).embeddingMode, "off");
+});
+
 test("tilde in fallbackFile is expanded", () => {
   const cfg = loadConfig(tmp(), tmp());
   assert.ok(!cfg.memoryDir.startsWith("~"));

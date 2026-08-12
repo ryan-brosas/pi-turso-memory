@@ -79,6 +79,7 @@ export interface MemoryHit {
   branchName?: string;
   createdAt: string;
   updatedAt: string;
+  score?: number;
 }
 
 export interface WorkingState {
@@ -113,6 +114,8 @@ export interface RetrievalQuery {
   includeGlobal?: boolean;
 }
 
+export type Embedder = (texts: string[]) => Promise<number[][]>;
+
 export interface MemoryStore {
   migrate(signal?: AbortSignal): Promise<void>;
   health(): Promise<StoreHealth>;
@@ -129,5 +132,7 @@ export interface MemoryStore {
   promote(id: string): Promise<void>;
   reject(id: string): Promise<void>;
   forget(id: string): Promise<void>;
+  setEmbedder(embed: Embedder | undefined, model?: string): void;
+  ensureEmbeddings(limit?: number): Promise<number>;
   close(): Promise<void>;
 }
