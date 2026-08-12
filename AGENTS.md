@@ -26,7 +26,8 @@ Evidence: `package.json#scripts`; local probe 2026-08-12 — green, 34/34 tests 
   read from the environment only; secret redaction runs before any storage or export
   (`src/redact.ts`, `src/store/turso-store.ts`).
 - Preserve unrelated and concurrent working-tree changes; stage only paths changed for the
-  active task. The tree currently holds uncommitted embeddings work — do not touch it.
+  active task. Committed through `v0.2.0-alpha.0` (embeddings hardening + Turso-native
+  retrieval); a stray untracked `memory:` SQLite file may appear from invalid-URL probes.
 - Publishing and destructive Git operations are irreversible; require explicit confirmation.
   Rulesets already protect `main` and `refs/tags/v*` from force-push/deletion.
 - Do not hand-edit gitignored `.pi/` harness state or `*.db*` files.
