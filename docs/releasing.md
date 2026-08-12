@@ -32,8 +32,20 @@ git push origin main --follow-tags
 ```
 
 Pushing the version tag triggers `.github/workflows/release.yml`. It verifies that the tag matches
-`package.json`, installs cleanly, and runs `npm publish --provenance --access public`. The
-`prepublishOnly` guard reruns the complete release check for any manual publish as well.
+`package.json`, installs cleanly, and runs `npm publish --provenance --access public --tag <derived>`.
+The dist-tag is derived from the version: prereleases publish under their own tag
+(`0.2.0-alpha.0` → `alpha`, `...-beta.1` → `beta`, `...-rc.2` → `rc`), everything else under
+`latest`. The `prepublishOnly` guard reruns the complete release check for any manual publish as well.
+
+## Publish an alpha
+
+```bash
+npm run release:check
+npm version 0.2.0-alpha.0     # pre-release; commits and creates v0.2.0-alpha.0
+git push origin main --follow-tags
+# verify:
+npm view pi-turso-memory dist-tags --json   # expect alpha -> 0.2.0-alpha.0, latest -> 0.1.1
+```
 
 ## Verify the release
 

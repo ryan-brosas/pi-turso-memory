@@ -25,4 +25,14 @@ jobs:
         run: |
           test "v$(jq -r .version package.json)" = "$GITHUB_REF_NAME"
       # prepublishOnly runs the full typecheck, test suite, and tarball inspection.
-      - run: npm publish --provenance --access public
+      # Prerelease versions (e.g. 0.2.0-alpha.0) publish under their own dist-tag
+      # (alpha/beta/rc) so latest is never replaced by an unstable build.
+      - name: Publish with version-derived dist-tag
+        run: |
+          TAG="latest"
+          VERSION="$(jq -r .version package.json)"
+          case "$VERSION" in
+            *-*) TAG="${VERSION#*-}"; TAG="${TAG%%.*}" ;;
+          esac
+          echo "Publishing $VERSION under dist-tag $TAG"
+          npm publish --provenance --access public --tag "$TAG"
