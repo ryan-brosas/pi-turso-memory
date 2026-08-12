@@ -1,8 +1,20 @@
 # pi-turso-memory
 
+<p align="center">
+  <a href="https://github.com/tursodatabase/turso">
+    <img
+      src="https://raw.githubusercontent.com/tursodatabase/turso/34394d62d5d0db9225bb14516d6f12b8c644148d/assets/turso.png"
+      alt="Built with Turso"
+      width="320"
+    />
+  </a>
+</p>
+
 Coding-progression memory for [Pi](https://github.com/earendil-works/pi-coding-agent), backed by
-Turso/libSQL: checkpoints, a structured progress ledger, curated Markdown knowledge, and
-fail-open retrieval.
+[Turso](https://github.com/tursodatabase/turso)/libSQL (Rust in-process SQLite): checkpoints, a
+structured progress ledger, curated Markdown knowledge, and fail-open retrieval.
+
+> Turso logo © Turso authors (MIT repo, [unmodified upstream asset](https://github.com/tursodatabase/turso/blob/34394d62d5d0db9225bb14516d6f12b8c644148d/assets/turso.png)). No endorsement implied.
 
 Design brief: `/home/utopia/work/inbox/turso-memory-plugin.md`
 
@@ -46,7 +58,12 @@ Config lives in the `turso-memory` namespace of global (`~/.pi/agent/settings.js
     "autoRecall": true,
     "includeGlobal": true,
     "maxInjectedChars": 10000,
-    "maxHits": 8
+    "maxHits": 8,
+    "embeddingMode": "off",
+    "embeddingProvider": "voyage",
+    "embeddingModel": "voyage-4-lite",
+    "embeddingApiKeyEnv": "VOYAGE_API_KEY",
+    "embeddingBaseUrl": ""
   }
 }
 ```
@@ -74,7 +91,8 @@ If your Turso/libSQL server runs in Docker (e.g. `ghcr.io/tursodatabase/libsql-s
 /tm checkpoint     write current state to inbox as a candidate
 /tm promote <id>   promote a candidate to active memory
 /tm reject <id>    reject a candidate
-/tm doctor         config, connection, redaction self-test
+/tm doctor         config, connection, redaction, embedding self-test
+/tm embed          backfill missing or model-stale embeddings (needs vectors + configured provider)
 /tm refresh        rebuild the injected snapshot at the next prompt
 ```
 
@@ -93,5 +111,28 @@ The suite includes module tests plus a fake-`ExtensionAPI` integration test cove
 - Secret scanning runs before hashing/indexing/export; blocked content is never stored.
 - Candidate mode is the default: automatic events become ledger rows, never active knowledge
   without `/tm promote`.
-- `src/store/turso-store.ts` hides SQL dialect behind a small store interface; FTS/vector
-  capabilities are probed at migration time and are never required.
+- `src/store/turso-store.ts` hides SQL dialect behind a small store interface; FTS5 and vector
+  capabilities are probed at migration time and are never required. When present, lexical
+  recall uses an FTS5 index (triggers keep it in sync; legacy rows are backfilled at migration)
+  and embeddings are stored as compact Turso `vector32` BLOBs ranked by SQL cosine distance.
+- Embeddings are optional. **Voyage is the default provider**: set `VOYAGE_API_KEY` and use
+  `embeddingMode: "auto"` (key present) or `"on"`. The embedder is wired at `session_start`,
+  new candidates are embedded on write, `/tm embed` backfills missing or model-stale rows, and
+  search merges lexical hits with compatible vector neighbors via reciprocal-rank fusion.
+  Transient provider failures retry; every final embedding failure fails open to lexical search.
+- Any external OpenAI-compatible `/embeddings` gateway can be used by selecting provider
+  `"openai"` and setting `embeddingBaseUrl`. This includes a FastEmbed-backed local gateway;
+  FastEmbed itself is not bundled or started by this package. A custom endpoint may be keyless:
+  set `embeddingApiKeyEnv` to `""` if its gateway does not require authorization. Example:
+
+  ```json
+  {
+    "embeddingMode": "on",
+    "embeddingProvider": "openai",
+    "embeddingModel": "BAAI/bge-small-en-v1.5",
+    "embeddingBaseUrl": "http://127.0.0.1:8080/v1",
+    "embeddingApiKeyEnv": ""
+  }
+  ```
+
+  With `embeddingApiKeyEnv: ""`, no ambient provider key or `Authorization` header is sent.

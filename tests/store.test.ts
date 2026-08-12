@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { createClient } from "@libsql/client";
 import { TursoMemoryStore } from "../src/store/turso-store.ts";
 import type { MemoryCandidateInput } from "../src/store/types.ts";
 
@@ -179,6 +180,217 @@ test("working state survives upsert and resume packet", async () => {
     const packet = await store.getResumePacket(identity.remoteUrl!);
     assert.equal(packet.workingState?.goal, "Ship the memory plugin");
     assert.equal(packet.workingState?.phase, "validating");
+  });
+});
+
+
+const vocab: Record<string, [number, number]> = {
+  banana: [1, 0],
+  yellow: [0, 1],
+  fruit: [0, 1],
+};
+
+async function fakeEmbedder(texts: string[]): Promise<number[][]> {
+  return texts.map((t) => {
+    const sum: [number, number] = [0, 0];
+    for (const w of t.toLowerCase().split(/\W+/)) {
+      const v = vocab[w];
+      if (v) {
+        sum[0] += v[0];
+        sum[1] += v[1];
+      }
+    }
+    const n = Math.hypot(sum[0], sum[1]) || 1;
+    return [sum[0] / n, sum[1] / n];
+  });
+}
+
+test("embeddings: candidates are embedded and vector search merges hits", async (t) => {
+  await withStore(async (store) => {
+    const health = await store.health();
+    if (!health.capabilities.vectors) {
+      t.skip("libsql without vector support");
+      return;
+    }
+    store.setEmbedder(fakeEmbedder, "fake");
+    const pid = await store.ensureProject(identity);
+    const bananaId = await store.createCandidate({
+      ...candidate,
+      projectId: pid,
+      title: "Banana color",
+      content: "the banana is yellow",
+    });
+    const saladId = await store.createCandidate({
+      ...candidate,
+      projectId: pid,
+      title: "Fruit salad",
+      content: "yellow fruit salad",
+    });
+    await store.promote(bananaId);
+    await store.promote(saladId);
+    const stats = await store.stats();
+    assert.equal(stats.memory_embeddings, 2);
+
+    // Lexical matches only the salad ("yellow fruit" phrase); vector adds the banana.
+    const hits = await store.search(
+      { query: "yellow fruit", scope: "current-project" },
+      identity.remoteUrl!,
+    );
+    assert.deepEqual(hits.map((h) => h.id), [saladId, bananaId]);
+    assert.ok(hits.every((h) => typeof h.score === "number"));
+    assert.ok(hits[0]!.score! >= hits[1]!.score!);
+  });
+});
+
+test("embeddings: missing rows are backfilled by ensureEmbeddings", async (t) => {
+  await withStore(async (store) => {
+    const health = await store.health();
+    if (!health.capabilities.vectors) {
+      t.skip("libsql without vector support");
+      return;
+    }
+    const pid = await store.ensureProject(identity);
+    const id = await store.createCandidate({
+      ...candidate,
+      projectId: pid,
+      content: "yellow fruit salad",
+    });
+    await store.promote(id);
+    let stats = await store.stats();
+    assert.equal(stats.memory_embeddings, 0);
+    store.setEmbedder(fakeEmbedder, "fake");
+    const done = await store.ensureEmbeddings();
+    assert.equal(done, 1);
+    stats = await store.stats();
+    assert.equal(stats.memory_embeddings, 1);
+    const hits = await store.search(
+      { query: "yellow fruit", scope: "current-project" },
+      identity.remoteUrl!,
+    );
+    assert.equal(hits.length, 1);
+    assert.ok(typeof hits[0]!.score === "number");
+  });
+});
+
+test("embeddings: failures fail open to lexical search", async (t) => {
+  await withStore(async (store) => {
+    store.setEmbedder(async () => {
+      throw new Error("embedding service down");
+    });
+    const pid = await store.ensureProject(identity);
+    const id = await store.createCandidate({
+      ...candidate,
+      projectId: pid,
+      content: "yellow fruit salad",
+    });
+    await store.promote(id);
+    const hits = await store.search(
+      { query: "yellow fruit", scope: "current-project" },
+      identity.remoteUrl!,
+    );
+    assert.equal(hits.length, 1);
+    assert.equal(hits[0]!.id, id);
+    assert.equal(hits[0]!.score, undefined);
+    const stats = await store.stats();
+    assert.equal(stats.memory_embeddings, 0);
+  });
+});
+
+
+test("embeddings: a model change re-backfills, while incompatible dimensions fail open", async (t) => {
+  await withStore(async (store) => {
+    const health = await store.health();
+    if (!health.capabilities.vectors) {
+      t.skip("libsql without vector support");
+      return;
+    }
+    const pid = await store.ensureProject(identity);
+    store.setEmbedder(fakeEmbedder, "model-v1");
+    const id = await store.createCandidate({
+      ...candidate,
+      projectId: pid,
+      content: "yellow fruit salad",
+    });
+    await store.promote(id);
+
+    store.setEmbedder(async (texts) => texts.map(() => [1, 0, 0]), "model-v2");
+    assert.equal(await store.ensureEmbeddings(), 1, "a changed model refreshes stale rows");
+    const refreshed = await store.search(
+      { query: "yellow fruit", scope: "current-project" },
+      identity.remoteUrl!,
+    );
+    assert.equal(refreshed[0]!.score !== undefined, true);
+
+    store.setEmbedder(async (texts) => texts.map(() => [1, 0]), "model-v2");
+    const incompatible = await store.search(
+      { query: "yellow fruit", scope: "current-project" },
+      identity.remoteUrl!,
+    );
+    assert.equal(incompatible[0]!.id, id);
+    assert.equal(incompatible[0]!.score, undefined, "mixed vector dimensions must not be compared");
+  });
+});
+
+test("FTS backfills rows that predate the virtual table", async (t) => {
+  await withStore(async (store, db) => {
+    const health = await store.health();
+    if (!health.capabilities.fts5) {
+      t.skip("libsql without FTS5 support");
+      return;
+    }
+    const pid = await store.ensureProject(identity);
+    await store.close();
+    const raw = createClient({ url: `file:${db}` });
+    await raw.execute({
+      sql: `INSERT INTO memory_items (id, owner_key, project_id, kind, scope, status, title, content, tags_json, confidence, importance, evidence_kind, file_paths_json, content_hash, created_at, updated_at)
+            VALUES (?, ?, ?, 'decision', 'project', 'active', ?, ?, '[]', 0.5, 0.5, 'tool_observed', '[]', ?, ?, ?)`,
+      args: ["mem_legacy", identity.remoteUrl, pid, "Legacy row", "pre-existing banana is yellow", "hash_legacy", "2026-08-01T00:00:00Z", "2026-08-01T00:00:00Z"],
+    });
+    raw.close();
+    const reopened = new TursoMemoryStore({ url: `file:${db}` });
+    await reopened.migrate();
+    try {
+      const hits = await reopened.search(
+        { query: "banana yellow", scope: "current-project" },
+        identity.remoteUrl!,
+      );
+      assert.deepEqual(hits.map((h) => h.id), ["mem_legacy"]);
+    } finally {
+      await reopened.close();
+    }
+  });
+});
+
+test("FTS retrieves separated query tokens and new embeddings persist as vector32 BLOBs", async (t) => {
+  await withStore(async (store, db) => {
+    const health = await store.health();
+    if (!health.capabilities.fts5 || !health.capabilities.vectors) {
+      t.skip("libsql without FTS5/vector support");
+      return;
+    }
+    store.setEmbedder(fakeEmbedder, "vector32-test");
+    const pid = await store.ensureProject(identity);
+    const id = await store.createCandidate({
+      ...candidate,
+      projectId: pid,
+      title: "Banana color",
+      content: "the banana is yellow",
+    });
+    await store.promote(id);
+
+    const hits = await store.search(
+      { query: "banana yellow", scope: "current-project" },
+      identity.remoteUrl!,
+    );
+    assert.deepEqual(hits.map((hit) => hit.id), [id], "FTS matches query tokens across words");
+
+    const client = createClient({ url: `file:${db}` });
+    try {
+      const result = await client.execute("SELECT typeof(vector) AS storage FROM memory_embeddings");
+      assert.equal(result.rows[0]!.storage, "blob");
+    } finally {
+      client.close();
+    }
   });
 });
 
