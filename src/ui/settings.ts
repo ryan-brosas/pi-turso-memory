@@ -1,5 +1,5 @@
 import { DynamicBorder, type Theme } from '@earendil-works/pi-coding-agent';
-import { type Component, Container, type SettingItem, SettingsList, type SettingsListTheme, Spacer, Text } from '@earendil-works/pi-tui';
+import { type Component, Container, type SettingItem, SelectList, SettingsList, type SettingsListTheme, Spacer, Text } from '@earendil-works/pi-tui';
 import type { TursoMemoryConfig } from '../config.ts';
 
 const BOOLEANS = ['true', 'false'] as const;
@@ -22,7 +22,6 @@ function numericSubmenu(theme: Theme, values: number[], format: (v: number) => s
     if (!items.some((item) => item.value === currentValue)) {
       items.unshift({ value: currentValue, label: currentValue });
     }
-    const { SelectList } = require('@earendil-works/pi-tui') as typeof import('@earendil-works/pi-tui');
     const list = new SelectList(items, Math.min(items.length, 8), {
       selectedPrefix: (text: string) => theme.fg('accent', text),
       selectedText: (text: string) => theme.fg('accent', text),

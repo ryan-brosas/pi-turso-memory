@@ -1,5 +1,5 @@
 import { DynamicBorder, type Theme } from '@earendil-works/pi-coding-agent';
-import { Container, type SelectItem, SelectList, type SelectListTheme, Spacer, Text } from '@earendil-works/pi-tui';
+import { Container, Key, matchesKey, type SelectItem, SelectList, type SelectListTheme, Spacer, Text } from '@earendil-works/pi-tui';
 import type { UiDashboardSnapshot } from './types.ts';
 
 function statusGlyph(status: string): string {
@@ -35,6 +35,8 @@ export class TursoDashboardComponent extends Container {
   private readonly snapshot: () => UiDashboardSnapshot;
   private readonly onPromote: (id: string) => void;
   private readonly onReject: (id: string) => void;
+  private candidateList: SelectList | undefined;
+  private selectedCandidateId: string | undefined;
   private readonly onClose: () => void;
 
   constructor(
@@ -54,6 +56,7 @@ export class TursoDashboardComponent extends Container {
   }
 
   private rebuild(): void {
+    this.candidateList = undefined;
     this.clear();
     const s = this.snapshot();
 
@@ -85,7 +88,7 @@ export class TursoDashboardComponent extends Container {
     }
 
     this.addChild(new Spacer(1));
-    this.addChild(new Text(this.theme.fg('dim', '  ← → panes  ·  ↑↓ navigate  ·  P promote  ·  R reject  ·  Esc close'), 1, 0));
+    this.addChild(new Text(this.theme.fg('dim', '  ← → panes  ·  ↑↓ select  ·  Enter/P promote  ·  R reject  ·  Esc close'), 1, 0));
     this.addChild(new DynamicBorder((text: string) => this.theme.fg('border', text)));
   }
 
@@ -118,6 +121,10 @@ export class TursoDashboardComponent extends Container {
       return;
     }
 
+    const selected = s.candidates.find((candidate) => candidate.id === this.selectedCandidateId) ?? s.candidates[0];
+    if (!selected) return;
+    this.selectedCandidateId = selected.id;
+
     const items: SelectItem[] = s.candidates.map((c) => ({
       value: c.id,
       label: c.kind + ': ' + c.title.slice(0, 60),
@@ -125,23 +132,26 @@ export class TursoDashboardComponent extends Container {
     }));
 
     const list = new SelectList(items, Math.min(items.length, 10), selectListTheme(this.theme));
+    list.setSelectedIndex(s.candidates.findIndex((candidate) => candidate.id === selected.id));
+    list.onSelectionChange = (item) => {
+      if (item.value === this.selectedCandidateId) return;
+      this.selectedCandidateId = item.value;
+      this.rebuild();
+    };
     list.onSelect = (item) => {
       this.onPromote(item.value);
     };
     list.onCancel = () => this.onClose();
+    this.candidateList = list;
     this.addChild(list);
     this.addChild(new Spacer(1));
 
-    // Show detail of selected candidate (track via candidateIndex, not SelectList.selectedIndex)
-    const selected = s.candidates[0];
-    if (selected) {
-      this.addChild(new Text(this.theme.fg('accent', this.theme.bold('  Selected')), 0, 0));
-      this.addChild(new Text('  ' + selected.title, 0, 0));
-      this.addChild(new Text('  ' + selected.content.slice(0, 200), 0, 0));
-      if (selected.gitHead) this.addChild(new Text('  git: ' + selected.gitHead, 0, 0));
-      if (selected.branchName) this.addChild(new Text('  branch: ' + selected.branchName, 0, 0));
-      this.addChild(new Text('  evidence: ' + selected.evidenceKind + '  confidence: ' + selected.confidence, 0, 0));
-    }
+    this.addChild(new Text(this.theme.fg('accent', this.theme.bold('  Selected')), 0, 0));
+    this.addChild(new Text('  ' + selected.title, 0, 0));
+    this.addChild(new Text('  ' + selected.content.slice(0, 200), 0, 0));
+    if (selected.gitHead) this.addChild(new Text('  git: ' + selected.gitHead, 0, 0));
+    if (selected.branchName) this.addChild(new Text('  branch: ' + selected.branchName, 0, 0));
+    this.addChild(new Text('  evidence: ' + selected.evidenceKind + '  confidence: ' + selected.confidence, 0, 0));
   }
 
   private renderTimeline(s: UiDashboardSnapshot): void {
@@ -158,18 +168,28 @@ export class TursoDashboardComponent extends Container {
   }
 
   handleInput(data: string): void {
-    if (data === 'ArrowLeft' || data === 'h') {
+    if (matchesKey(data, Key.left) || matchesKey(data, "h")) {
       const panes: DashboardPane[] = ['overview', 'candidates', 'timeline'];
       const idx = panes.indexOf(this.pane);
       this.pane = panes[(idx - 1 + panes.length) % panes.length];
       this.rebuild();
-    } else if (data === 'ArrowRight' || data === 'l') {
+    } else if (matchesKey(data, Key.right) || matchesKey(data, "l")) {
       const panes: DashboardPane[] = ['overview', 'candidates', 'timeline'];
       const idx = panes.indexOf(this.pane);
       this.pane = panes[(idx + 1) % panes.length];
       this.rebuild();
-    } else if (data === 'Escape') {
+    } else if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
       this.onClose();
+    } else if (this.pane === 'candidates') {
+      if (matchesKey(data, Key.up) || matchesKey(data, Key.down) || matchesKey(data, Key.enter)) {
+        this.candidateList?.handleInput(data);
+      } else if (matchesKey(data, "p") || matchesKey(data, "shift+p")) {
+        const selected = this.snapshot().candidates.find((candidate) => candidate.id === this.selectedCandidateId) ?? this.snapshot().candidates[0];
+        if (selected) this.onPromote(selected.id);
+      } else if (matchesKey(data, "r") || matchesKey(data, "shift+r")) {
+        const selected = this.snapshot().candidates.find((candidate) => candidate.id === this.selectedCandidateId) ?? this.snapshot().candidates[0];
+        if (selected) this.onReject(selected.id);
+      }
     }
   }
 

@@ -390,23 +390,75 @@ export default function (pi: ExtensionAPI) {
       const snapshot = await gatherSnapshot(ctx);
       if (!snapshot) { notify(ctx, 'turso-memory: no project bound', 'warning'); return; }
       await ctx.ui.custom<undefined>((tui, theme, _kb, done) => {
-        const open = () => {
-          const comp = new TursoDashboardComponent(
-            theme,
-            () => snapshot!,
-            async (id) => {
-              try { await store!.promote(id); const file = findInboxFile(config!.memoryDir, id); if (file) { fs.mkdirSync(archiveDir(config!.memoryDir), { recursive: true }); try { fs.renameSync(path.join(inboxDir(config!.memoryDir), file), path.join(archiveDir(config!.memoryDir), file)); } catch {} } notify(ctx, 'promoted ' + id, 'info'); } catch (e) { notify(ctx, 'promote failed: ' + shortError(e), 'error'); }
-              open();
-            },
-            async (id) => {
-              try { await store!.reject(id); notify(ctx, 'rejected ' + id, 'info'); } catch (e) { notify(ctx, 'reject failed: ' + shortError(e), 'error'); }
-              open();
-            },
-            () => done(undefined),
-          );
-          return comp;
+        let currentSnapshot = snapshot;
+        let dashboard: TursoDashboardComponent | undefined;
+        let actionInFlight = false;
+
+        const refresh = async (): Promise<void> => {
+          try {
+            const next = await gatherSnapshot(ctx);
+            if (next) {
+              currentSnapshot = next;
+              dashboard?.invalidate();
+              tui.requestRender();
+            }
+          } catch (e) {
+            notify(ctx, 'dashboard refresh failed: ' + shortError(e), 'error');
+          }
         };
-        return open();
+
+        const runAction = async (
+          action: () => Promise<void>,
+          successMessage: string,
+          failureLabel: string,
+        ): Promise<void> => {
+          if (actionInFlight) return;
+          actionInFlight = true;
+          try {
+            await action();
+            notify(ctx, successMessage, 'info');
+          } catch (e) {
+            notify(ctx, failureLabel + ': ' + shortError(e), 'error');
+          } finally {
+            await refresh();
+            actionInFlight = false;
+          }
+        };
+
+        dashboard = new TursoDashboardComponent(
+          theme,
+          () => currentSnapshot,
+          (id) =>
+            runAction(
+              async () => {
+                await store!.promote(id);
+                const file = findInboxFile(config!.memoryDir, id);
+                if (file) {
+                  fs.mkdirSync(archiveDir(config!.memoryDir), { recursive: true });
+                  try {
+                    fs.renameSync(
+                      path.join(inboxDir(config!.memoryDir), file),
+                      path.join(archiveDir(config!.memoryDir), file),
+                    );
+                  } catch {
+                    // file move is best-effort
+                  }
+                }
+              },
+              'promoted ' + id,
+              'promote failed',
+            ),
+          (id) =>
+            runAction(
+              async () => {
+                await store!.reject(id);
+              },
+              'rejected ' + id,
+              'reject failed',
+            ),
+          () => done(undefined),
+        );
+        return dashboard;
       }, { overlay: true });
     } catch (e) {
       notify(ctx, 'dashboard: ' + shortError(e), 'error');
